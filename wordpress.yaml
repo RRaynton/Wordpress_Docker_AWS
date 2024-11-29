@@ -1,0 +1,22 @@
+services:
+  wordpress:
+    image: wordpress
+    restart: always
+    ports:
+      - 8080:80
+    environment:
+      WORDPRESS_DB_HOST_FILE: /run/secrets/db_host
+      WORDPRESS_DB_USER: admin
+      WORDPRESS_DB_PASSWORD_FILE: /run/secrets/db_password
+      WORDPRESS_DB_NAME: wordpressdb
+    secrets:
+      - db_host
+      - db_password
+    volumes:
+      - /efs/website:/var/www/html
+
+secrets:
+  db_password:
+    file: db_password.txt
+  db_host:
+    file: db_host.txt
