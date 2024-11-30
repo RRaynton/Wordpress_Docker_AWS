@@ -1,15 +1,18 @@
 # Instalação do Wordpress utilizando uma máquina EC2
-- Criação da VPC
-- Security Groups
-- Bando de dados RDS
-- Montagem do EFS
-- Montagem inicial da EC2
-- Docker Compose (yaml file)
-- Arquivo user_data.sh
-- Template para EC2
-- Auto Scaling Group
-- Load Balancer
+O programa de bolsas da Compass Uol<img src="https://logospng.org/download/uol/logo-uol-icon-256.png" width="20"/> apresentou o desafio de subir instâncias EC2 na AWS com um conteiner com a imagem do Wordpress, utilizando um banco de dados e um sistema de volumes fornecidos pela AWS, de forma escalável e segura. Para realização dessa tarefa, os seguintes passos foram seguidos:
 
+- [Criação da VPC](#1--criação-da-vpc)
+- [Security Groups](#2--security-groups)
+- [Bando de dados RDS](#3--bando-de-dados-rds)
+- [Montagem do EFS](#4--montagem-do-efs)
+- [Montagem inicial da EC2](#5--montagem-inicial-da-ec2)
+- [Docker Compose (yaml file)](#6--docker-compose-yaml-file)
+- [Arquivo user_data.sh](#7--arquivo-user_datash)
+- [Template para EC2](#8--template-para-ec2)
+- [Load Balancer](#9--load-balancer)
+- [Auto Scaling Group](#10--auto-scaling-group)
+
+  
 ## 1- Criação da VPC
 
 Desenhou-se um modelo de VPC para acomodar toda a infraestrutura do projeto, com pensamento em melhorias futuras. Para isso, guardou-se os dois primeiros octetos para indicar a VPC que será utilizada (10.0.x.x), oara realizar essa indicação, a notação é 10.0.0.0/16.
@@ -68,7 +71,7 @@ Para o funcionamento do Wordpress, é necessário ter um banco de dados MySQL as
   - Initial database name: wordpressdb
 
 As informações do banco serão utilizadas no yaml file do docker-compose que irá subir o conteiner do wordpress.
-  
+
 ## 4- Montagem do EFS
 
 Para garantir que os dados da aplicação persistam indementende das instâncias EC2, é necessário ter um volume a parte. A amazon fornece alguns serviços para essa função, um deles é o EFS (Elastic File System). 
@@ -170,7 +173,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 ~~~
 
 Com o docker-compose instalado, é possível realizar o teste para subir a instancia. Para isso, é necessário criar o yaml file.
-
+  
 ## 6- Docker Compose (yaml file)
 
 O Docker Compose permite que se escreva um arquivo onde se define todas as informações necessárias para subir um conteiner sem a necessidade de realizar todas as configurações via linha de comando. O Wordpress necessita alocar arquivos e dados, os arquivos serão alocados em um volume, no caso o EFS, e os dados serão alocados em um banco de dados, no caso o MySQL criado com o RDS. Para garantir segurança nos dados, utilizou-se de secrets no yaml file. Indica-se o serviço que será criado, a imagem que ser´´a utilizada, garante a reinicialização do serviço e indica-se a porta, onde na porta 8080 será escutado todo o tráfego vindo da porta 80 do conteiner. Indica-se as variáveis de ambiente confidenciais via secrets e não confidenciais diretamente. Indica-se as secrets e depois o volume, que receberá os dados vindos da pasta /var/html/www do container e alocará na pasta /efs/website do EFS. Os arquivos onde serão coletados os secrets é indicado abaixo. eles serão salvos dentro do container em /var/secrets/.
@@ -246,7 +249,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 
 sudo docker-compose -f /efs/wordpress.yaml up -d
 ~~~
-
+  
 ## 8- Template para EC2
 
 Com o user_data.sh montado, é possível definir um template que será utilizado para criar novas instancias, sem a necessidade de configurar tudo novamente a cada instancia EC2 criada.
@@ -280,12 +283,10 @@ A AWS possui a ferramenta Launch Templates, onde clica-se em Create Launch Templ
 
 - Advanced details
   - User data - optional: Informar o user_data.sh
+  
+## 9- Load Balancer
 
-## 10- Load Balancer
-
-
-
-## 11- Auto Scaling Group
+## 10- Auto Scaling Group
 
 Para que caso o serviço peça mais recursos do que a instância EC2 possa fornecer, é possível definir um ASG, onde indica-se qual a métrica que deve ser utilizada para indicar se é necessário subir uma nova instancia para auxiliar e quantas instancias devem estar rodando no mínimo, no máximo e qual o valor desejado. Para isso utilizou-se do Auto scaling group com as seguintes configurações:
 - Name: project-wordpress-asg
@@ -307,5 +308,7 @@ Para que caso o serviço peça mais recursos do que a instância EC2 possa forne
   - Instance warmup: 300 seconds
 - Instance maintenance policy: No policy
 
+  
 ## 11- Stress test
+
 ## Resultados Gerais
