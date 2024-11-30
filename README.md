@@ -283,6 +283,8 @@ A AWS possui a ferramenta Launch Templates, onde clica-se em Create Launch Templ
 
 ## 10- Load Balancer
 
+
+
 ## 11- Auto Scaling Group
 
 Para que caso o serviço peça mais recursos do que a instância EC2 possa fornecer, é possível definir um ASG, onde indica-se qual a métrica que deve ser utilizada para indicar se é necessário subir uma nova instancia para auxiliar e quantas instancias devem estar rodando no mínimo, no máximo e qual o valor desejado. Para isso utilizou-se do Auto scaling group com as seguintes configurações:
