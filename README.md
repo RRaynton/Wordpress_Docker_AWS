@@ -141,16 +141,13 @@ sudo usermod -aG docker ubuntu
 sudo systemctl enable docker
 ~~~
 
-Com o docker instalado, instala-se o efs-utils para conseguir montar o EFS. A ferramenta efs-utils vem por padrão no yum nas instancias Amazon Linux, mas nas instancias ubuntu é necessário clonar o repositório git da ferramenta e dar build para que assim seja possível instalar via apt install.
-Após instalado o efs-utils, é necessário criar uma pasta onde será montado o EFS, decidiu-se montar em /efs. Para que este disco persista na montagem, é necessário indicar no /etc/fstab a montagem desse disco.
+Com o docker instalado, instala-se o efs-utils para conseguir montar o EFS. A ferramenta efs-utils vem por padrão no yum nas instancias Amazon Linux, mas nas instancias ubuntu utiliza-se o nfs-common.
+Após instalado, é necessário criar uma pasta onde será montado o EFS, decidiu-se montar em /efs. Para que este disco persista na montagem, é necessário indicar no /etc/fstab a montagem desse disco.
 O comando para a montagem do disco pode ser obtido clicando em Attach no EFS, existem duas opções, via DNS e via IP, escolhi a oção via IP e defini a zona.
 
 ~~~bash
-sudo apt-get -y install git binutils rustc cargo pkg-config libssl-dev gettext
-git clone https://github.com/aws/efs-utils
-cd efs-utils
-./build-deb.sh
-sudo apt-get -y install ./build/amazon-efs-utils*deb
+#Instala o nfs-common e monta o efs no sistema
+sudo apt-get -y install nfs-common
 sudo mkdir /efs
 sudo mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 10.0.0.49:/ /efs
 sudo chmod 666 /etc/fstab
@@ -232,12 +229,8 @@ sudo systemctl start docker
 sudo usermod -aG docker ubuntu
 sudo systemctl enable docker
 
-#Instala o efs-utils e monta o efs no sistema
-sudo apt-get -y install git binutils rustc cargo pkg-config libssl-dev gettext
-git clone https://github.com/aws/efs-utils
-cd efs-utils
-./build-deb.sh
-sudo apt-get -y install ./build/amazon-efs-utils*deb
+#Instala o nfs-common e monta o efs no sistema
+sudo apt-get -y install nfs-common
 sudo mkdir /efs
 sudo mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport 10.0.0.49:/ /efs
 sudo chmod 666 /etc/fstab
