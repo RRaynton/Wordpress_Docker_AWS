@@ -7,10 +7,11 @@ O programa de bolsas da Compass Uol<img src="https://logospng.org/download/uol/l
 - [Montagem do EFS](#4--montagem-do-efs)
 - [Montagem inicial da EC2](#5--montagem-inicial-da-ec2)
 - [Docker Compose (yaml file)](#6--docker-compose-yaml-file)
-- [Arquivo user_data.sh](#7--arquivo-user_datash)
-- [Template para EC2](#8--template-para-ec2)
-- [Load Balancer](#9--load-balancer)
-- [Auto Scaling Group](#10--auto-scaling-group)
+- [Script para atualização do Banco de dados](#7--script-para-atualização-do-banco-de-dados) 
+- [Arquivo user_data.sh](#8--arquivo-user_datash)
+- [Template para EC2](#9--template-para-ec2)
+- [Load Balancer](#10--load-balancer)
+- [Auto Scaling Group](#11--auto-scaling-group)
 
   
 ## 1- Criação da VPC
@@ -211,7 +212,21 @@ docker-compose -f wordpress.yaml up -d
 
 Com a instância criada, acessa-se o endereço dado pelo ip publico da maquina seguido de :8080 para verificar se na porta 8080 o serviço está funcionando.
 
-## 7- Arquivo user_data.sh
+## 7- Script para atualização do Banco de dados
+
+Como o banco de dados armazena o IP que deve ser acessado em wp_options e a máquina muda de IP a cada nova criação, foi necessário atualizar a url para o acesso correto. Esta URL está no wp_options onde o 'option_name' é 'siteurl', deve ser alterado o option_value para http://(ipv4 publico):8080. Para isso, foi criado um script que acessa o banco de dados e altera essa parte do banco de dados. Esse script foi salvo em /efs/script_sql.sh
+
+~~~bash
+#!/bin/bash
+IP_EX2="UPDATE wp_options SET option_value = 'http://$(curl http://checkip.amazonaws.com):8080' WHERE option_name = 'siteurl';"
+
+sudo apt install mysql-client -y
+host=$(cat /efs/db_host.txt) && user=$(cat /efs/db_user.txt) && pw=$(cat /efs/db_password.txt)
+
+mysql -h $host -u $user -p$pw wordpressdb -e "$IP_EX2"
+~~~
+
+## 8- Arquivo user_data.sh
 
 Com tudo funcionando na instância de teste, pode-se preparar um arquivo executável responsável por realizar todos os comandos assim que uma instancia for criada, para isso a AWS fornece um serviço na criação da isntancia para indicar um user_data.sh. Este arquivo é executado no momento de criação da instância, alguns cuidados devem ser tomados pois no momento em que esse arquivo sobe a instancia ainda está com o usuário sudo e ainda não foram montados a maioria dos diretórios, um dos unicos montados é o /etc. Reunindo todos os códigos utilizados na instancia, tem-se o seguinte user_data.sh:
 ~~~bash
@@ -240,10 +255,14 @@ sudo echo "10.0.0.49:/     /efs      nfs4      nfsvers=4.1,rsize=1048576,wsize=1
 sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
 sudo chmod +x /usr/local/bin/docker-compose
 
+#Sobe o conteiner do Wordpress
 sudo docker-compose -f /efs/wordpress.yaml up -d
+
+#Atualiza o mysql com o ip atual
+sudo bash /efs/script_sql.sh
 ~~~
   
-## 8- Template para EC2
+## 9- Template para EC2
 
 Com o user_data.sh montado, é possível definir um template que será utilizado para criar novas instancias, sem a necessidade de configurar tudo novamente a cada instancia EC2 criada.
 A AWS possui a ferramenta Launch Templates, onde clica-se em Create Launch Template. As informações utilizadas foram:
@@ -277,9 +296,9 @@ A AWS possui a ferramenta Launch Templates, onde clica-se em Create Launch Templ
 - Advanced details
   - User data - optional: Informar o user_data.sh
   
-## 9- Load Balancer
+## 10- Load Balancer
 
-## 10- Auto Scaling Group
+## 11- Auto Scaling Group
 
 Para que caso o serviço peça mais recursos do que a instância EC2 possa fornecer, é possível definir um ASG, onde indica-se qual a métrica que deve ser utilizada para indicar se é necessário subir uma nova instancia para auxiliar e quantas instancias devem estar rodando no mínimo, no máximo e qual o valor desejado. Para isso utilizou-se do Auto scaling group com as seguintes configurações:
 - Name: project-wordpress-asg
@@ -302,6 +321,6 @@ Para que caso o serviço peça mais recursos do que a instância EC2 possa forne
 - Instance maintenance policy: No policy
 
   
-## 11- Stress test
+## 12- Stress test
 
 ## Resultados Gerais
