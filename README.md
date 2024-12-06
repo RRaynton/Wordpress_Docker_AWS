@@ -24,32 +24,53 @@ Para que as redes consigam acessar o gateway, é necessário uma tabela de rotas
 
 ## 2- Security Groups
 
-Com a VPC criada, é importante definir quais os grupos de segurança, dessa forma pode-se indicar as permissões de acesso dentro das subredes. O banco de dados RDS e o sistema de volumes EFS serão colocados em um grupo privado, onde apenas as instancias públicas tem acesso a eles.
-O banco de dados é acessado pela porta 3306, por isso define-se o acesso a 10.0.0.0/24:3306 e 10.0.2.0/24:3306.
-O EFS é acessado pela porta 2049, por isso define-se o acesso a 10.0.0.0/24:2049 e 10.0.2.0/24:2049.
-Para acessar as instancias e a aplicação, é necessário criar um grupo relacioando a parte pública, dando acesso inicial ao protocolo SSH na porta 22 e também a saída do wordpress na porta 8080.
+Com a VPC criada, é importante definir quais os grupos de segurança, dessa forma pode-se indicar as permissões de acesso dentro das subredes. O banco de dados RDS e o sistema de volumes EFS serão colocados em um grupo privado, onde apenas as instancias privadas tem acesso a eles.
+O banco de dados é acessado pela porta 3306, por isso define-se o acesso a 10.0.1.0/24:3306 e 10.0.3.0/24:3306.
+O EFS é acessado pela porta 2049, por isso define-se o acesso a 10.0.1.0/24:2049 e 10.0.3.0/24:2049.
+Para acessar as instancias privadas durante o processo, criou-se um Bastion Host em uma subnet publica para que com ele se consiga acessar as instancias privadas. É necessário assim criar um grupo de segurança para ele, conferindo acesso via protocolo SSH na porta 22 apenas para quem faz parte da VPC (10.0.0.0/16).
+Criou-se um grupo de segurança para o load balancer com acesso irrestrito a porta HTTP 80 e a porta HTTPS 443.
+Além desses, foi criado um grupo de segurança para as máquinas privadas.
 
 <div align="center"> <img src="images/DiagramaVPC.drawio.png" width = "70%" /> </div>
+
+### Inbound do project-wordpress-RDS
+
+|SERVIÇO         |MAPEAMENTO                     |PORTA                        |
+|----------------|-------------------------------|-----------------------------|
+|MYSQL           |10.0.1.0/24                    |3306                         |
+|MYSQL           |10.0.3.0/24                    |3306                         |
+
+### Inbound do project-wordpress-EFS
+
+|SERVIÇO         |MAPEAMENTO                     |PORTA                        |
+|----------------|-------------------------------|-----------------------------|
+|NFS             |10.0.1.0/24                    |2049                         |
+|NFS             |10.0.3.0/24                    |2049                         |
+
+### Inbound do project-wordpress-LB
+
+|SERVIÇO         |MAPEAMENTO                     |PORTA                        |
+|----------------|-------------------------------|-----------------------------|
+|HTTP            |0.0.0.0/0                      |80                           |
+|HTTPS           |0.0.0.0/0                      |443                          |
 
 ### Inbound do project-wordpress-priv-sg
 
 |SERVIÇO         |MAPEAMENTO                     |PORTA                        |
 |----------------|-------------------------------|-----------------------------|
-|MYSQL           |10.0.0.0/24                    |3306                         |
-|NFS             |10.0.0.0/24                    |2049                         |
-|MYSQL           |10.0.2.0/24                    |3306                         |
-|NFS             |10.0.2.0/24                    |2049                         |
+|MYSQL           |project-wordpress-RDS          |3306                         |
+|NFS             |project-wordpress-EFS          |2049                         |
+|SSH             |10.0.0.0/16                    |22                           |
+|HTTP            |project-wordpress-LB           |80                           |
+|HTTPS           |project-wordpress-LB           |443                          |
+
 
 ### Inbound do project-wordpress-pub-sg
 
 |SERVIÇO         |MAPEAMENTO                     |PORTA                        |
 |----------------|-------------------------------|-----------------------------|
 |SSH             |0.0.0.0/0                      |22                           |
-|TCP             |0.0.0.0/0                      |8080                         |
-|HTTP            |10.0.0.0/24                    |80                           |
-|HTTPS           |10.0.0.0/24                    |443                          |
-|HTTP            |10.0.2.0/24                    |80                           |
-|HTTPS           |10.0.2.0/24                    |443                          |
+
 
 ## 3- Bando de dados RDS
 
@@ -66,7 +87,7 @@ Para o funcionamento do Wordpress, é necessário ter um banco de dados MySQL as
   - instance type: db.t3.micro
 - Connectivity
   - VPC: project-wordpress-vpc
-  - VPC security groups: project-wordpress-priv-sg
+  - VPC security groups: project-wordpress-RDS
   - Availability Zone: No preference (us-east-1a e us-east-1b)
 - Additional configuration
   - Initial database name: wordpressdb
@@ -88,12 +109,12 @@ Ao criar um EFS, indica-se a VPC a ser utilizada e clica-se em Customize para po
     - Availability zone: us-east-1a
     - Subnet ID: wordpress-machine1-priv
     - IP address: Automatic
-    - Security groups: project-wordpress-priv-sg
+    - Security groups: project-wordpress-EFS
   - MT2:
     - Availability zone: us-east-1b
     - Subnet ID: wordpress-machine2-priv
     - IP address: Automatic
-    - Security groups: project-wordpress-priv-sg
+    - Security groups: project-wordpress-EFS
 
 ## 5- Montagem inicial da EC2
 
@@ -182,7 +203,7 @@ services:
     image: wordpress
     restart: always
     ports:
-      - 8080:80
+      - 80:80
     environment:
       WORDPRESS_DB_HOST_FILE: /run/secrets/db_host
       WORDPRESS_DB_USER_FILE: /run/secrets/db_user
@@ -210,7 +231,7 @@ Com o arquivo criado, basta utilizar o docker compose indicando o nome do arquiv
 docker-compose -f wordpress.yaml up -d
 ~~~
 
-Com a instância criada, acessa-se o endereço dado pelo ip publico da maquina seguido de :8080 para verificar se na porta 8080 o serviço está funcionando.
+Com a instância criada, acessa-se o endereço dado pelo ip publico da maquina seguido de :8080 para verificar se na porta 80 o serviço está funcionando.
 
 ## 7- Script para atualização do Banco de dados
 
