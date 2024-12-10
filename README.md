@@ -54,6 +54,8 @@ Para que as redes consigam acessar o gateway, é necessário uma tabela de rotas
 
 <div align="center"> <img src="images/RouteVPC.png" width = "90%" /> </div>
 
+<div align="center"> <img src="images/DiagramaVPCsemBH.jpg" width = "70%" /> </div>
+
 ## 2- Security Groups
 
 Com a VPC criada, é importante definir quais os grupos de segurança, dessa forma pode-se indicar as permissões de acesso dentro das subredes. O banco de dados RDS e o sistema de volumes EFS serão colocados em um grupo privado, onde apenas as instancias privadas tem acesso a eles.
@@ -63,7 +65,7 @@ Para acessar as instancias privadas durante o processo, criou-se um Bastion Host
 Criou-se um grupo de segurança para o load balancer com acesso irrestrito a porta HTTP 80 e a porta HTTPS 443.
 Além desses, foi criado um grupo de segurança para as máquinas privadas com acesso via SSH na porta 22 apenas para quem faz parte da VPC (10.0.0.0/16), acesso ao banco de dados e ao EFS e acesso via HTTP e HTTPS via load balancer.
 
-<div align="center"> <img src="images/DiagramaVPC.drawio.png" width = "70%" /> </div>
+<div align="center"> <img src="images/DiagramaVPCcomBH.jpg" width = "70%" /> </div>
 
 ### Inbound do project-wordpress-RDS
 
@@ -385,7 +387,7 @@ Ao criar o NAT Gateway, deve-se associa-lo à tabela de rotas para a parte priva
 
 Para acessar as máquinas privadas e conseguir realizar testes nelas, é necessário criar uma máquina na parte pública, que pode ser acessada via SSH e essa máquina pública possui acesso às máquinas privadas. Essa máquina que o único papel é o de dar acesso às máquinas privadas existe apenas no momento de teste, após tudo pronto ela não é mais necessária.
 
-<div align="center"> <img src="images/DiagramaVPC.drawio.png" width = "70%" /> </div>
+<div align="center"> <img src="images/DiagramaVPCcomBH.jpg" width = "70%" /> </div>
 
 Na parte de Launch Templates, clica-se em Create Launch Template. As informações utilizadas foram:
 
@@ -528,3 +530,5 @@ Pode-se acompanhar a tela de monitoramento das EC2 no Auto Scaling Group, onde i
 ## Resultados Gerais
 
 Após a conclusão do projeto, pode-se entender o funcionamento de diversas ferramentas da AWS para a criação da infraestrutura necessária para o deploy de uma aplicação com segurança e escalabilidade. O bastion Host e o grupo de segurança para ele podem ser eliminados e o sistema passa a ser inacessível para pessoas externas enquanto a aplicação segue funcionando via load balancer com a escalabilidade disponibilizada pelo auto scaling group.
+
+<div align="center"> <img src="images/DiagramaVPCsemBH.jpg" width = "70%" /> </div>
