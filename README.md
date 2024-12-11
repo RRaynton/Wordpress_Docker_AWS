@@ -1,5 +1,5 @@
 # Instalação do Wordpress utilizando uma máquina EC2
-O programa de bolsas da Compass Uol<img src="https://logospng.org/download/uol/logo-uol-icon-256.png" width="20"/> apresentou o desafio de subir instâncias EC2 na AWS com um conteiner com a imagem do Wordpress, utilizando um banco de dados e um sistema de volumes fornecidos pela AWS, de forma escalável e segura. Para realização dessa tarefa, os seguintes passos foram seguidos:
+O programa de bolsas da **Compass Uol**<img src="https://logospng.org/download/uol/logo-uol-icon-256.png" width="20"/> apresentou o desafio de subir instâncias EC2 na AWS com um conteiner com a imagem do Wordpress, utilizando um banco de dados e um sistema de volumes fornecidos pela AWS, de forma escalável e segura. Para realização dessa tarefa, os seguintes passos foram seguidos:
 
 - [<img src="images/VPC_image.png" width="20"/> Criação da VPC](#-criação-da-vpc)
 - [<img src="images/SG_image.png" width="20"/> Security Groups](#-security-groups)
