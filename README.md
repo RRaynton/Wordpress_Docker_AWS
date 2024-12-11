@@ -7,7 +7,7 @@ O programa de bolsas da **Compass Uol**<img src="https://logospng.org/download/u
 - [<img src="images/EFS_image.png" width="20"/> Montagem do EFS](#-montagem-do-efs)
 - [<img src="images/EC2_image.png" width="20"/> Montagem inicial da EC2](#-montagem-inicial-da-ec2)
 - [<img src="images/DC_image.png" width="25"/>Docker Compose (yaml file)](#docker-compose-yaml-file)
-- [<img src="images/SCRIPT_image.png" width="20"/> Script para atualização do Banco de dados (Opicional)](#-script-para-atualização-do-banco-de-dados-opcional) 
+- [<img src="images/SCRIPT_image.png" width="20"/> Script para atualização do Banco de dados (Opcional)](#-script-para-atualização-do-banco-de-dados-opcional) 
 - [<img src="images/SCRIPT_image.png" width="20"/> Arquivo user_data.sh](#-arquivo-user_datash)
 - [<img src="images/EC2_image.png" width="20"/> Template para EC2](#-template-para-ec2)
 - [<img src="images/NAT_image.png" width="20"/> NAT Gateway](#-nat-gateway)
