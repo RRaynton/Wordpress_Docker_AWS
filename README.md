@@ -6,7 +6,7 @@ O programa de bolsas da Compass Uol<img src="https://logospng.org/download/uol/l
 - [<img src="images/RDS_image.png" width="20"/> Bando de dados RDS](#-bando-de-dados-rds)
 - [<img src="images/EFS_image.png" width="20"/> Montagem do EFS](#-montagem-do-efs)
 - [<img src="images/EC2_image.png" width="20"/> Montagem inicial da EC2](#-montagem-inicial-da-ec2)
-- [<img src="images/DC_image.png" width="20"/> Docker Compose (yaml file)](#-docker-compose-yaml-file)
+- [<img src="images/DC_image.png" width="25"/>Docker Compose (yaml file)](#docker-compose-yaml-file)
 - [<img src="images/SCRIPT_image.png" width="20"/> Script para atualização do Banco de dados (Opicional)](#-script-para-atualização-do-banco-de-dados-opcional) 
 - [<img src="images/SCRIPT_image.png" width="20"/> Arquivo user_data.sh](#-arquivo-user_datash)
 - [<img src="images/EC2_image.png" width="20"/> Template para EC2](#-template-para-ec2)
@@ -255,7 +255,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 
 Com o docker-compose instalado, é possível realizar o teste para subir a instancia. Para isso, é necessário criar o yaml file.
   
-## <img src="images/DC_image.png" width="25"/> Docker Compose (yaml file)
+## <img src="images/DC_image.png" width="30"/>Docker Compose (yaml file)
 
 O Docker Compose permite que se escreva um arquivo onde se define todas as informações necessárias para subir um conteiner sem a necessidade de realizar todas as configurações via linha de comando. O Wordpress necessita alocar arquivos e dados, os arquivos serão alocados em um volume, no caso o EFS, e os dados serão alocados em um banco de dados, no caso o MySQL criado com o RDS. Para garantir segurança nos dados, utilizou-se de secrets no yaml file. Indica-se o serviço que será criado, a imagem que ser´´a utilizada, garante a reinicialização do serviço e indica-se a porta, onde na porta 8080 será escutado todo o tráfego vindo da porta 80 do conteiner. Indica-se as variáveis de ambiente confidenciais via secrets e não confidenciais diretamente. Indica-se as secrets e depois o volume, que receberá os dados vindos da pasta /var/html/www do container e alocará na pasta /efs/website do EFS. Os arquivos onde serão coletados os secrets é indicado abaixo. eles serão salvos dentro do container em /var/secrets/.
 
@@ -311,7 +311,7 @@ mysql -h $host -u $user -p$pw wordpressdb -e "$IP_EX2"
 
 ## <img src="images/SCRIPT_image.png" width="25"/> Arquivo user_data.sh
 
-Com tudo funcionando na instância de teste, pode-se preparar um arquivo executável responsável por realizar todos os comandos assim que uma instancia for criada, para isso a AWS fornece um serviço na criação da isntancia para indicar um user_data.sh. Este arquivo é executado no momento de criação da instância, alguns cuidados devem ser tomados pois no momento em que esse arquivo sobe a instancia ainda está com o usuário sudo e ainda não foram montados a maioria dos diretórios, um dos unicos montados é o /etc. Reunindo todos os códigos utilizados na instancia, tem-se o seguinte user_data.sh:
+Com tudo funcionando na instância de teste, pode-se preparar um arquivo executável responsável por realizar todos os comandos assim que uma instancia for criada, para isso a AWS fornece um serviço na criação da isntancia para indicar um user_data.sh. Este arquivo é executado no momento de criação da instância. Reunindo todos os códigos utilizados na instancia de teste, tem-se o seguinte user_data.sh:
 
 ~~~bash
 #!/bin/bash
@@ -378,6 +378,7 @@ A AWS possui a ferramenta Launch Templates, onde clica-se em Create Launch Templ
 
 - Advanced details
   - User data - optional: Informar o user_data.sh
+> Importante notar que a instância será criada em uma rede privada, para garantir a segurança.
  
 ## <img src="images/NAT_image.png" width="25"/> NAT Gateway
 
@@ -386,7 +387,7 @@ Ao criar o NAT Gateway, deve-se associa-lo à tabela de rotas para a parte priva
 
 ## <img src="images/EC2_image.png" width="25"/> Bastion Host
 
-Para acessar as máquinas privadas e conseguir realizar testes nelas, é necessário criar uma máquina na parte pública, que pode ser acessada via SSH e essa máquina pública possui acesso às máquinas privadas. Essa máquina que o único papel é o de dar acesso às máquinas privadas existe apenas no momento de teste, após tudo pronto ela não é mais necessária.
+Para acessar as máquinas privadas e conseguir realizar testes nelas, é necessário criar uma máquina na parte pública, que pode ser acessada via SSH e essa máquina pública possui acesso às máquinas privadas. **Essa máquina** que o único papel é o de dar acesso às máquinas privadas **existe apenas no momento de teste**, após tudo pronto ela não é mais necessária.
 
 <div align="center"> <img src="images/DiagramaVPCcomBH.jpg" width = "70%" /> </div>
 
@@ -418,6 +419,44 @@ Na parte de Launch Templates, clica-se em Create Launch Template. As informaçõ
 |Nome            |Bastion Host                   |Instances & Volumes          |
 
  > Com essas configurações e **com os Security Groups nas confiruações inicialmente mencionadas** o sistema irá funcionar.
+
+### Inbound do project-wordpress-RDS
+
+|SERVIÇO         |MAPEAMENTO                     |PORTA                        |
+|----------------|-------------------------------|-----------------------------|
+|MYSQL           |10.0.1.0/24                    |3306                         |
+|MYSQL           |10.0.3.0/24                    |3306                         |
+
+### Inbound do project-wordpress-EFS
+
+|SERVIÇO         |MAPEAMENTO                     |PORTA                        |
+|----------------|-------------------------------|-----------------------------|
+|NFS             |10.0.1.0/24                    |2049                         |
+|NFS             |10.0.3.0/24                    |2049                         |
+
+### Inbound do project-wordpress-LB
+
+|SERVIÇO         |MAPEAMENTO                     |PORTA                        |
+|----------------|-------------------------------|-----------------------------|
+|HTTP            |0.0.0.0/0                      |80                           |
+|HTTPS           |0.0.0.0/0                      |443                          |
+
+### Inbound do project-wordpress-priv-sg
+
+|SERVIÇO         |MAPEAMENTO                     |PORTA                        |
+|----------------|-------------------------------|-----------------------------|
+|MYSQL           |project-wordpress-RDS          |3306                         |
+|NFS             |project-wordpress-EFS          |2049                         |
+|SSH             |10.0.0.0/16                    |22                           |
+|HTTP            |project-wordpress-LB           |80                           |
+|HTTPS           |project-wordpress-LB           |443                          |
+
+
+### Inbound do project-wordpress-pub-sg
+
+|SERVIÇO         |MAPEAMENTO                     |PORTA                        |
+|----------------|-------------------------------|-----------------------------|
+|SSH             |0.0.0.0/0                      |22                           |
 
 Cria-se primeiro o Bastion Host. Em Instances, O botão de Launch instances possui uma seta na lateral onde pode-se escolher a opção **Launch instance from template** escolhe-se o template do Bastion Host e clica-se em **Launch instance**. Quando a instância for criada, deve-se passar a chave ssh para dentro dela. Para isso deve-se realziar o comando de copia com segurança, o security copy (scp). Indica-se o comando, -i para indicar a chave, indica-se a chave de segurança utilizada para realizar a cópia, depois o arquivo que deve ser copiado e depois o destino ao qual esse arquivo deve ir:
 
@@ -491,6 +530,8 @@ Para criar, em EC2 -> Load Balancers clica-se na seta ao lado de Create load bal
 Criando assim o Load Balancer.
 Pode-se verificar se está funcional ao acessa-lo, clicando em Target instances e verificando se o Health status está "in service". Caso esteja funcional, basta copiar o DNS name seguido de **/wp-admin** no navegador e a página de instalação do wordpress aparecerá.
 
+<div align="center"> <img src="images/LBfuncional.png" width = "90%" /> </div>
+
 ## <img src="images/ASG_image.png" width="25"/> Auto Scaling Group
 
 Para que caso o serviço peça mais recursos do que a instância EC2 possa fornecer, é possível definir um Auto Scaling Group, onde indica-se qual a métrica que deve ser utilizada para indicar se é necessário subir uma nova instancia para auxiliar e quantas instâncias devem estar rodando no mínimo, no máximo e qual o valor desejado. Para isso utilizou-se do Auto scaling group com as seguintes configurações:
@@ -517,6 +558,10 @@ Para que caso o serviço peça mais recursos do que a instância EC2 possa forne
 
 Com essas configurações o Auto Scaling Group irá criar automaticamente duas instâncias, por mais q uma seja derrubada, ele cria uma nova mantendo sempre duas instancias no mínimo em execução. Caso seja exigido mais do que 40% em média da CPU do grupo, uma nova instancia será criada para diminuir essa média. Caso a média cresça e volte a ultrapassar os 40%, outra instancia é criada,onde o máximo são 4 instâncias, e mesmo que a média ultrapasse novamente os 40%, não serão criadas novas instancias. Ao passar 5 minutos com a média abaixo dos 40%, uma instancia é deletada para garantir assim que o sistema cresce até o máximo quando necessário, mas quando não é mais necessário ele também derruba as instancias anteriormente criadas. O Load Balancer trabalha indicando qual das instancias está em boas condições para ser lida e repassada para o cliente.
 
+<div align="center"> <img src="images/ASG_funcional.png" width = "90%" /> </div>
+
+<div align="center"> <img src="images/InstanciasASG.png" width = "90%" /> </div>
+
 ## <img src="images/ST_image.png" width="25"/> Stress test
 
 Uma forma de verificar se o Auto Scaling está funcionando é estressando uma das máquinas, para isso, basta acessa-la via Bastion Host, instalar o pacote de stress e deixar ele estressar a cpu dessa máquina:
@@ -526,7 +571,11 @@ sudo apt install stress
 stress --cpu 40
 ~~~
 
-Pode-se acompanhar a tela de monitoramento das EC2 no Auto Scaling Group, onde indica a média das CPU e junto a isso verificar se quando essa média ultrapassa os 40% se uma nova instancia é criada. Após verificar se as 4 foram criadas, pode-se parar o stress test com Ctrl+C e após 5 minutos uma instancia será terminada, após mais 5 minutos, outra instancia será terminada.
+Pode-se acompanhar a tela de monitoramento das EC2 no Auto Scaling Group, onde indica a média das CPU e junto a isso verificar se quando essa média ultrapassa os 40% se uma nova instancia é criada. 
+<div align="center"> <img src="images/TesteSobrecarga.png" width = "90%" /> </div>
+
+Após verificar se as 4 foram criadas, pode-se parar o stress test com Ctrl+C e após 5 minutos uma instancia será terminada, após mais 5 minutos, outra instancia será terminada.
+<div align="center"> <img src="images/DepoisDaSobrecarga.png" width = "90%" /> </div>
 
 ## Resultados Gerais
 
