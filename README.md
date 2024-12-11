@@ -3,7 +3,7 @@ O programa de bolsas da **Compass Uol**<img src="https://logospng.org/download/u
 
 - [<img src="images/VPC_image.png" width="20"/> Criação da VPC](#-criação-da-vpc)
 - [<img src="images/SG_image.png" width="20"/> Security Groups](#-security-groups)
-- [<img src="images/RDS_image.png" width="20"/> Bando de dados RDS](#-bando-de-dados-rds)
+- [<img src="images/RDS_image.png" width="20"/> Banco de dados RDS](#-banco-de-dados-rds)
 - [<img src="images/EFS_image.png" width="20"/> Montagem do EFS](#-montagem-do-efs)
 - [<img src="images/EC2_image.png" width="20"/> Montagem inicial da EC2](#-montagem-inicial-da-ec2)
 - [<img src="images/DC_image.png" width="25"/>Docker Compose (yaml file)](#docker-compose-yaml-file)
@@ -107,7 +107,7 @@ Além desses, foi criado um grupo de segurança para as máquinas privadas com a
 |SSH             |0.0.0.0/0                      |22                           |
 
 
-## <img src="images/RDS_image.png" width="25"/> Bando de dados RDS
+## <img src="images/RDS_image.png" width="25"/> Banco de dados RDS
 
 Para o funcionamento do Wordpress, é necessário ter um banco de dados MySQL associado a ele como dependência, para isso, utilizou-se do serviço da AWS chamado RDS (Relational Databases Service). Com ele é possível criar um banco de dados dentro da VPC. Utilizou-se os seguintes parametros:
 - Engine Options
