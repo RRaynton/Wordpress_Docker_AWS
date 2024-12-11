@@ -1,52 +1,53 @@
 # Instalação do Wordpress utilizando uma máquina EC2
 O programa de bolsas da Compass Uol<img src="https://logospng.org/download/uol/logo-uol-icon-256.png" width="20"/> apresentou o desafio de subir instâncias EC2 na AWS com um conteiner com a imagem do Wordpress, utilizando um banco de dados e um sistema de volumes fornecidos pela AWS, de forma escalável e segura. Para realização dessa tarefa, os seguintes passos foram seguidos:
 
-- [Criação da VPC](#1--criação-da-vpc)
-- [Security Groups](#2--security-groups)
-- [Bando de dados RDS](#3--bando-de-dados-rds)
-- [Montagem do EFS](#4--montagem-do-efs)
-- [Montagem inicial da EC2](#5--montagem-inicial-da-ec2)
-- [Docker Compose (yaml file)](#6--docker-compose-yaml-file)
-- [Script para atualização do Banco de dados (Opicional)](#7--script-para-atualização-do-banco-de-dados-opcional) 
-- [Arquivo user_data.sh](#8--arquivo-user_datash)
-- [Template para EC2](#9--template-para-ec2)
-- [NAT Gateway](#10--nat-gateway)
-- [Bastion Host](#11--bastion-host)
-- [Load Balancer](#12--load-balancer)
-- [Auto Scaling Group](#13--auto-scaling-group)
-- [Stress Test](#14--stress-test)
+- [<img src="images/VPC_image.png" width="20"/> Criação da VPC](#-criação-da-vpc)
+- [<img src="images/SG_image.png" width="20"/> Security Groups](#-security-groups)
+- [<img src="images/RDS_image.png" width="20"/> Bando de dados RDS](#-bando-de-dados-rds)
+- [<img src="images/EFS_image.png" width="20"/> Montagem do EFS](#-montagem-do-efs)
+- [<img src="images/EC2_image.png" width="20"/> Montagem inicial da EC2](#-montagem-inicial-da-ec2)
+- [<img src="images/DC_image.png" width="20"/> Docker Compose (yaml file)](#-docker-compose-yaml-file)
+- [<img src="images/SCRIPT_image.png" width="20"/> Script para atualização do Banco de dados (Opicional)](#-script-para-atualização-do-banco-de-dados-opcional) 
+- [<img src="images/SCRIPT_image.png" width="20"/> Arquivo user_data.sh](#-arquivo-user_datash)
+- [<img src="images/EC2_image.png" width="20"/> Template para EC2](#-template-para-ec2)
+- [<img src="images/NAT_image.png" width="20"/> NAT Gateway](#-nat-gateway)
+- [<img src="images/EC2_image.png" width="20"/> Bastion Host](#-bastion-host)
+- [<img src="images/LB_image.png" width="20"/> Load Balancer](#-load-balancer)
+- [<img src="images/ASG_image.png" width="20"/> Auto Scaling Group](#-auto-scaling-group)
+- [<img src="images/ST_image.png" width="20"/> Stress Test](#-stress-test)
 
   
-## 1- Criação da VPC
+## <img src="images/VPC_image.png" width="25"/> Criação da VPC
 
 Desenhou-se um modelo de VPC para acomodar toda a infraestrutura do projeto. Para isso, guardou-se os dois primeiros octetos (16 bits) para indicar a VPC que será utilizada (10.0.x.x), para realizar essa indicação, a notação é 10.0.0.0/16.
 Com a VPC criada, foram criadas 4 sub-redes utilizando o terceiro octeto (sendo asism fixados 24 bits), na zona us-east-1a foi criada uma pública com IPs 10.0.0.0/24 e uma privada com IPs 10.0.1.0/24, na zona us-east-1b foi criada uma pública com IPs 10.0.2.0/24 e uma privada com IPs 10.0.3.0/24. As sub-redes públicas recebem acesso a internet via internet gateway com acesso irrestrito (0.0.0.0/0) enquanto as privadas não recebem acesso a internet até então.
 Para que as redes consigam acessar o gateway, é necessário uma tabela de rotas, desta forma a estrutura da VPC possui o seguinte formato:
 
-<div align="center">
+
+<div align="center" style="text-align: center;">
 <table><thead>
   <tr>
-    <th colspan="4" text-align:center>VPC</th>
+    <th colspan="4" >VPC</th>
   </tr></thead>
 <tbody>
   <tr>
-    <td colspan="4" text-align:center> 10.0.x.x </td>
+    <td colspan="4"> 10.0.x.x </td>
   </tr>
   <tr>
-    <td colspan="2" text-align:center>us-east-1a</td>
-    <td colspan="2" text-align:center>us-east-1b</td>
+    <td colspan="2" >us-east-1a</td>
+    <td colspan="2">us-east-1b</td>
   </tr>
   <tr>
-    <td text-align:center>Publica</td>
-    <td text-align:center>Privada</td>
-    <td text-align:center>Publica</td>
-    <td text-align:center>Privada</td>
+    <td>Publica</td>
+    <td>Privada</td>
+    <td>Publica</td>
+    <td>Privada</td>
   </tr>
   <tr>
-    <td text-align:center>10.0.0.x</td>
-    <td text-align:center>10.0.1.x</td>
-    <td text-align:center>10.0.2.x</td>
-    <td text-align:center>10.0.3.x</td>
+    <td>10.0.0.x</td>
+    <td>10.0.1.x</td>
+    <td>10.0.2.x</td>
+    <td>10.0.3.x</td>
   </tr>
 </tbody>
 </table>
@@ -56,7 +57,7 @@ Para que as redes consigam acessar o gateway, é necessário uma tabela de rotas
 
 <div align="center"> <img src="images/DiagramaVPCsemBH.jpg" width = "70%" /> </div>
 
-## 2- Security Groups
+## <img src="images/SG_image.png" width="25"/> Security Groups
 
 Com a VPC criada, é importante definir quais os grupos de segurança, dessa forma pode-se indicar as permissões de acesso dentro das subredes. O banco de dados RDS e o sistema de volumes EFS serão colocados em um grupo privado, onde apenas as instancias privadas tem acesso a eles.
 O banco de dados é acessado pela porta 3306, por isso define-se o acesso a 10.0.1.0/24:3306 e 10.0.3.0/24:3306.
@@ -106,7 +107,7 @@ Além desses, foi criado um grupo de segurança para as máquinas privadas com a
 |SSH             |0.0.0.0/0                      |22                           |
 
 
-## 3- Bando de dados RDS
+## <img src="images/RDS_image.png" width="25"/> Bando de dados RDS
 
 Para o funcionamento do Wordpress, é necessário ter um banco de dados MySQL associado a ele como dependência, para isso, utilizou-se do serviço da AWS chamado RDS (Relational Databases Service). Com ele é possível criar um banco de dados dentro da VPC. Utilizou-se os seguintes parametros:
 - Engine Options
@@ -128,7 +129,7 @@ Para o funcionamento do Wordpress, é necessário ter um banco de dados MySQL as
 
 As informações do banco serão utilizadas no yaml file do docker-compose que irá subir o conteiner do wordpress.
 
-## 4- Montagem do EFS
+## <img src="images/EFS_image.png" width="25"/> Montagem do EFS
 
 Para garantir que os dados da aplicação persistam independentemente das instâncias EC2, é necessário ter um volume a parte. A Amazon fornece alguns serviços para essa função, um deles é o EFS (Elastic File System). 
 Ao criar um EFS, indica-se a VPC a ser utilizada e clica-se em Customize para poder indicar o security group ao qual ele deve ser associado.
@@ -150,7 +151,7 @@ Ao criar um EFS, indica-se a VPC a ser utilizada e clica-se em Customize para po
     - IP address: Automatic
     - Security groups: project-wordpress-EFS
 
-## 5- Montagem inicial da EC2
+## <img src="images/EC2_image.png" width="25"/> Montagem inicial da EC2
 
 Para as configurações e testes iniciais, cria-se uma instancia EC2 limpa e com ela instala-se o docker, monta-se o EFS, instala-se o docker-compose e realiza-se o teste se todos os passos seguidos estão funcionando conforme o esperado. A instancia EC2 é criada com os seguintes parâmetros:
 - Name and tags
@@ -254,7 +255,7 @@ sudo chmod +x /usr/local/bin/docker-compose
 
 Com o docker-compose instalado, é possível realizar o teste para subir a instancia. Para isso, é necessário criar o yaml file.
   
-## 6- Docker Compose (yaml file)
+## <img src="images/DC_image.png" width="25"/> Docker Compose (yaml file)
 
 O Docker Compose permite que se escreva um arquivo onde se define todas as informações necessárias para subir um conteiner sem a necessidade de realizar todas as configurações via linha de comando. O Wordpress necessita alocar arquivos e dados, os arquivos serão alocados em um volume, no caso o EFS, e os dados serão alocados em um banco de dados, no caso o MySQL criado com o RDS. Para garantir segurança nos dados, utilizou-se de secrets no yaml file. Indica-se o serviço que será criado, a imagem que ser´´a utilizada, garante a reinicialização do serviço e indica-se a porta, onde na porta 8080 será escutado todo o tráfego vindo da porta 80 do conteiner. Indica-se as variáveis de ambiente confidenciais via secrets e não confidenciais diretamente. Indica-se as secrets e depois o volume, que receberá os dados vindos da pasta /var/html/www do container e alocará na pasta /efs/website do EFS. Os arquivos onde serão coletados os secrets é indicado abaixo. eles serão salvos dentro do container em /var/secrets/.
 
@@ -294,7 +295,7 @@ docker-compose -f wordpress.yaml up -d
 
 Com a instância criada, acessa-se o endereço dado pelo ip publico da maquina seguido de :80 para verificar se na porta 80 o serviço está funcionando.
 
-## 7- Script para atualização do Banco de dados (Opcional)
+## <img src="images/RDS_image.png" width="25"/> Script para atualização do Banco de dados (Opcional)
 
 Como o banco de dados armazena o IP que deve ser acessado em wp_options e a máquina muda de IP a cada nova criação, foi necessário atualizar a url para o acesso correto. Esta URL está no wp_options onde o 'option_name' é 'siteurl', deve ser alterado o option_value para http://(ipv4 publico):8080. Para isso, foi criado um script que acessa o banco de dados e altera essa parte do banco de dados. Esse script foi salvo em /efs/script_sql.sh
 
@@ -308,7 +309,7 @@ host=$(cat /efs/db_host.txt) && user=$(cat /efs/db_user.txt) && pw=$(cat /efs/db
 mysql -h $host -u $user -p$pw wordpressdb -e "$IP_EX2"
 ~~~
 
-## 8- Arquivo user_data.sh
+## <img src="images/SCRIPT_image.png" width="25"/> Arquivo user_data.sh
 
 Com tudo funcionando na instância de teste, pode-se preparar um arquivo executável responsável por realizar todos os comandos assim que uma instancia for criada, para isso a AWS fornece um serviço na criação da isntancia para indicar um user_data.sh. Este arquivo é executado no momento de criação da instância, alguns cuidados devem ser tomados pois no momento em que esse arquivo sobe a instancia ainda está com o usuário sudo e ainda não foram montados a maioria dos diretórios, um dos unicos montados é o /etc. Reunindo todos os códigos utilizados na instancia, tem-se o seguinte user_data.sh:
 
@@ -345,7 +346,7 @@ sudo docker-compose -f /efs/wordpress.yaml up -d
 #sudo bash /efs/script_sql.sh
 ~~~
   
-## 9- Template para EC2
+## <img src="images/EC2_image.png" width="25"/> Template para EC2
 
 Com o user_data.sh montado, é possível definir um template que será utilizado para criar novas instancias, sem a necessidade de configurar tudo novamente a cada instancia EC2 criada.
 A AWS possui a ferramenta Launch Templates, onde clica-se em Create Launch Template. As informações utilizadas foram:
@@ -378,12 +379,12 @@ A AWS possui a ferramenta Launch Templates, onde clica-se em Create Launch Templ
 - Advanced details
   - User data - optional: Informar o user_data.sh
  
-## 10- NAT Gateway
+## <img src="images/NAT_image.png" width="25"/> NAT Gateway
 
 O template criado gera máquinas na parte privada e isso gera dois problemas, o primeiro é que essas máquinas não possuem acesso a internet, pois as subnets privadas não estão associadas ao internet gateway. Para garantir a segurança, de forma que a máquina possa acessar a internet e baixar pacotes, mas a internet não possa acessar a máquina, deve ser criado um NAT Gateway. Para isso, em VPC -> NAT gateway, clica-se em Create NAT Gateway. O nome utilizado foi **project-wordpress-nat** e escolhe-se uma subnet pública em que ele deve estar, escolheu-se a subnet **wordpress-machine1-pub** com conectividade **Public** e clica-se em **Allocate Elastic IP**.
 Ao criar o NAT Gateway, deve-se associa-lo à tabela de rotas para a parte privada. Para isso, em VPC -> Route tables, acessa-se a tabela de rotas **project-wordpress-rt-pvt** e em Routes -> Edit Routes adiciona-se uma rota para 0.0.0.0/0 Com um NAT Gateway e escolhe-se o NAT criado **project-wordpress-nat** e salva as mudanças. Com isso, as instâncias privadas passam a ter acesso a internet, mas não podem ser acessadas via SSH ainda.
 
-## 11- Bastion Host
+## <img src="images/EC2_image.png" width="25"/> Bastion Host
 
 Para acessar as máquinas privadas e conseguir realizar testes nelas, é necessário criar uma máquina na parte pública, que pode ser acessada via SSH e essa máquina pública possui acesso às máquinas privadas. Essa máquina que o único papel é o de dar acesso às máquinas privadas existe apenas no momento de teste, após tudo pronto ela não é mais necessária.
 
@@ -465,7 +466,7 @@ curl localhost/wp-admin/install.php
 
 Caso tudo tenha funcionado normalmente, está na hora de implementar uma forma de um usuário comum, externo a VPC, conseguir acessar nossa página wordpress. Para isso, será utilizado um Load Balancer.
 
-## 12- Load Balancer
+## <img src="images/LB_image.png" width="25"/> Load Balancer
 
 O Load balancer é um sistema que verifica a integridade das instancias e a partir do algoritmo Round Robin escolhe uma para que seja exposta a internet. Por enquanto, nosso projeto só possui uma instância, mas ele analisará se esta instância é saldável e caso seja irá expor a mesma a internet via seu endereço de DNS.
 Para criar, em EC2 -> Load Balancers clica-se na seta ao lado de Create load balancer e clica-se em **Create Classic Load Balancer**. Utilizou-se os seguintes parâmetros:
@@ -490,7 +491,7 @@ Para criar, em EC2 -> Load Balancers clica-se na seta ao lado de Create load bal
 Criando assim o Load Balancer.
 Pode-se verificar se está funcional ao acessa-lo, clicando em Target instances e verificando se o Health status está "in service". Caso esteja funcional, basta copiar o DNS name seguido de **/wp-admin** no navegador e a página de instalação do wordpress aparecerá.
 
-## 13- Auto Scaling Group
+## <img src="images/ASG_image.png" width="25"/> Auto Scaling Group
 
 Para que caso o serviço peça mais recursos do que a instância EC2 possa fornecer, é possível definir um Auto Scaling Group, onde indica-se qual a métrica que deve ser utilizada para indicar se é necessário subir uma nova instancia para auxiliar e quantas instâncias devem estar rodando no mínimo, no máximo e qual o valor desejado. Para isso utilizou-se do Auto scaling group com as seguintes configurações:
 - Name: project-wordpress-asg
@@ -516,7 +517,7 @@ Para que caso o serviço peça mais recursos do que a instância EC2 possa forne
 
 Com essas configurações o Auto Scaling Group irá criar automaticamente duas instâncias, por mais q uma seja derrubada, ele cria uma nova mantendo sempre duas instancias no mínimo em execução. Caso seja exigido mais do que 40% em média da CPU do grupo, uma nova instancia será criada para diminuir essa média. Caso a média cresça e volte a ultrapassar os 40%, outra instancia é criada,onde o máximo são 4 instâncias, e mesmo que a média ultrapasse novamente os 40%, não serão criadas novas instancias. Ao passar 5 minutos com a média abaixo dos 40%, uma instancia é deletada para garantir assim que o sistema cresce até o máximo quando necessário, mas quando não é mais necessário ele também derruba as instancias anteriormente criadas. O Load Balancer trabalha indicando qual das instancias está em boas condições para ser lida e repassada para o cliente.
 
-## 14- Stress test
+## <img src="images/ST_image.png" width="25"/> Stress test
 
 Uma forma de verificar se o Auto Scaling está funcionando é estressando uma das máquinas, para isso, basta acessa-la via Bastion Host, instalar o pacote de stress e deixar ele estressar a cpu dessa máquina:
 
