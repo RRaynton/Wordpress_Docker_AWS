@@ -15,6 +15,7 @@ O programa de bolsas da **Compass Uol**<img src="https://logospng.org/download/u
 - [<img src="images/LB_image.png" width="20"/> Load Balancer](#-load-balancer)
 - [<img src="images/ASG_image.png" width="20"/> Auto Scaling Group](#-auto-scaling-group)
 - [<img src="images/ST_image.png" width="20"/> Stress Test](#-stress-test)
+- [<img src="https://www.strongdm.com/hubfs/21126185/Technology%20Images/5f2b5a777fc4b03c559b12ed_AWS-CloudFormation.png" width="20"/> Cloud Formation](#-cloud-formation)
 
   
 ## <img src="images/VPC_image.png" width="25"/> Criação da VPC
@@ -576,6 +577,478 @@ Pode-se acompanhar a tela de monitoramento das EC2 no Auto Scaling Group, onde i
 
 Após verificar se as 4 foram criadas, pode-se parar o stress test com Ctrl+C e após 5 minutos uma instancia será terminada, após mais 5 minutos, outra instancia será terminada.
 <div align="center"> <img src="images/DepoisDaSobrecarga.png" width = "90%" /> </div>
+
+## <img src="https://www.strongdm.com/hubfs/21126185/Technology%20Images/5f2b5a777fc4b03c559b12ed_AWS-CloudFormation.png" width="25"/> Cloud Formation
+
+Após a conclusão do projeto, é possível montar toda a instrutura criada como código (IaC) utilziando a ferramenta oferecida pela Amazon chamada CloudFormation. Serão criados recursos em **Resources:** onde para a criação da VPC utiliza-se o seguinte bloco:
+
+~~~yaml
+    VPCteste:
+      Type: AWS::EC2::VPC
+      Properties:
+        CidrBlock: 16.0.0.0/16
+        EnableDnsSupport: 'true'
+        EnableDnsHostnames: 'false'
+~~~
+
+Para a criação das sub-redes e do grupode sub-redes para o RDS, utiliza-se:
+
+~~~yaml
+    SubnetPublic1:
+      #Criação da Subnet Pública 1
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref VPCteste
+        CidrBlock: 16.0.0.0/24
+        AvailabilityZone: us-east-1a
+    
+    SubnetPrivate1:
+      #Criação da Subnet Privada 1
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref VPCteste
+        CidrBlock: 16.0.1.0/24
+        AvailabilityZone: us-east-1a
+    
+    SubnetPublic2:
+      #Criação da Subnet Pública 2
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref VPCteste
+        CidrBlock: 16.0.2.0/24
+        AvailabilityZone: us-east-1b
+    
+    SubnetPrivate2:
+      #Criação da Subnet Privada 2
+      Type: AWS::EC2::Subnet
+      Properties:
+        VpcId: !Ref VPCteste
+        CidrBlock: 16.0.3.0/24
+        AvailabilityZone: us-east-1b
+
+    RdsDBSubnetGroup:
+      #Criação do Grupo de Subnets para o RDS
+      Type: AWS::RDS::DBSubnetGroup
+      Properties:
+        DBSubnetGroupDescription: Subnets para o RDS
+        SubnetIds:
+          - !Ref SubnetPrivate1
+          - !Ref SubnetPrivate2
+~~~
+
+O Internet Gateway é criado e associado a VPC com o seguinte bloco:
+
+~~~yaml
+    IGWteste:
+      #Criação do Internet Gateway
+      Type: AWS::EC2::InternetGateway
+    
+    AttachIGW:
+      #Anexando o Internet Gateway à VPC
+      Type: AWS::EC2::VPCGatewayAttachment
+      Properties:
+        VpcId: !Ref VPCteste
+        InternetGatewayId: !Ref IGWteste
+~~~
+
+É criada uma tabela de rotas pública que deve ser associada às VPCs públicas e gerada uma rota para o Internet Gateway:
+
+~~~yaml
+    RTpub:
+      #Criando a tabela de rotas pública
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref VPCteste
+
+    RTpubtoIGW:
+      #Criando a rota da tabela de rotas públicas até o internet gateway
+      Type: AWS::EC2::Route
+      DependsOn: IGWteste
+      Properties:
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId: !Ref IGWteste
+        RouteTableId: !Ref RTpub
+
+    RTassoc1:
+      #Associando a subnet pública 1 à tabela de rotas públicas
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref RTpub
+        SubnetId: !Ref SubnetPublic1
+    
+    RTassoc2:
+      #Associando a subnet pública 2 à tabela de rotas públicas
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref RTpub
+        SubnetId: !Ref SubnetPublic2
+~~~
+
+Também é criada uma tabela de rotas privada, um NAT Gateway associado a um IP Elástico e criada a associação das sub-redes privadas com a tabela de rotas privadas e criada a rota para o NAT Gateway
+
+~~~yaml
+RTpriv:
+      #Criando a tabela de rotas privadas
+      Type: AWS::EC2::RouteTable
+      Properties:
+        VpcId: !Ref VPCteste
+
+    ElasticIP:
+      #Criando um IP elástico
+      Type: AWS::EC2::EIP
+      Properties:
+        Domain: vpc
+    
+    NAT:
+      #Criando um NAT gateway com IP elástico
+      Type: AWS::EC2::NatGateway
+      DependsOn:
+        - SubnetPublic1
+        - ElasticIP
+      Properties: 
+        AllocationId: !GetAtt ElasticIP.AllocationId
+        SubnetId: !Ref SubnetPublic1
+    
+    RTassoc3:
+      #Associando a subnet privada 1 à tabela de rotas privadas
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      DependsOn:
+        - RTpriv
+      Properties:
+        RouteTableId: !Ref RTpriv
+        SubnetId: !Ref SubnetPrivate1
+    
+    RTassoc4:
+      #Associando a subnet privada 2 à tabela de rotas privadas
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Properties:
+        RouteTableId: !Ref RTpriv
+        SubnetId: !Ref SubnetPrivate2
+    
+    RTprivtoNAT:
+      #Criando a rota da tabela de rotas privadas até o NAT Gateway
+      Type: AWS::EC2::Route
+      DependsOn: NAT
+      Properties:
+        DestinationCidrBlock: 0.0.0.0/0
+        NatGatewayId: !Ref NAT
+        RouteTableId: !Ref RTpriv
+~~~
+
+Após a criação de toda a estrutura da VPC, buscou-se criar os Security Groups:
+
+~~~yaml
+    SgRDS:
+      #Criando o Security Group do RDS
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        VpcId: !Ref VPCteste
+        GroupName: project-wordpress-RDS
+        GroupDescription: Porta do RDS
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '3306'
+            ToPort: '3306'
+            CidrIp: 16.0.1.0/24
+          - IpProtocol: tcp
+            FromPort: '3306'
+            ToPort: '3306'
+            CidrIp: 16.0.3.0/24
+
+    SgEFS:
+      #Criando o Security Group do EFS
+      DependsOn: SgRDS
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        VpcId: !Ref VPCteste
+        GroupName: project-wordpress-EFS
+        GroupDescription: Porta do EFS
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '2049'
+            ToPort: '2049'
+            CidrIp: 16.0.1.0/24
+          - IpProtocol: tcp
+            FromPort: '2049'
+            ToPort: '2049'
+            CidrIp: 16.0.3.0/24
+
+    SgLB:
+      #Criando o Security Group do Load Balancer
+      DependsOn: SgEFS
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        VpcId: !Ref VPCteste
+        GroupName: project-wordpress-LB
+        GroupDescription: Portas para o load balancer
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '80'
+            ToPort: '80'
+            CidrIp: 0.0.0.0/0
+          - IpProtocol: tcp
+            FromPort: '443'
+            ToPort: '443'
+            CidrIp: 0.0.0.0/0
+    
+    SgEC2Priv:
+      #Criando o Security Group das EC2 privadas
+      Type: AWS::EC2::SecurityGroup
+      DependsOn: SgLB
+      Properties:
+        VpcId: !Ref VPCteste
+        GroupName: project-wordpress-priv-sg
+        GroupDescription: Portas para as EC2 privadas
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '80'
+            ToPort: '80'
+            SourceSecurityGroupId: !Ref SgLB
+          - IpProtocol: tcp
+            FromPort: '443'
+            ToPort: '443'
+            SourceSecurityGroupId: !Ref SgLB
+          - IpProtocol: tcp
+            FromPort: '3306'
+            ToPort: '3306'
+            SourceSecurityGroupId: !Ref SgRDS
+          - IpProtocol: tcp
+            FromPort: '2049'
+            ToPort: '2049'
+            SourceSecurityGroupId: !Ref SgEFS
+          - IpProtocol: tcp
+            FromPort: '22'
+            ToPort: '22'
+            CidrIp: 16.0.0.0/16
+
+    SgEC2Pub:
+      #Criando o Security Group de EC2 públicas
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        VpcId: !Ref VPCteste
+        GroupName: project-wordpress-pub-sg
+        GroupDescription: Portas para as EC2 publicas
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: '22'
+            ToPort: '22'
+            CidrIp: 0.0.0.0/0
+~~~
+
+Após a criação da VPC e dos Security Groups, Criou-se o banco de dados RDS com as informações de nome de usuário, senha e nome do banco de dados:
+
+~~~yaml
+    RDS:
+      #Criando o RDS
+      Type: AWS::RDS::DBInstance
+      DependsOn: SgRDS
+      Properties:
+        DBSubnetGroupName: !Ref RdsDBSubnetGroup
+        DBInstanceIdentifier: wpdatabase
+        DBName: secrets
+        MasterUsername: secrets
+        MasterUserPassword: secrets
+        DBInstanceClass: db.t3.micro
+        Engine: MySQL
+        EngineVersion: 8.0.39
+        StorageType: gp2
+        AllocatedStorage: '20'
+        VPCSecurityGroups:
+          - !Ref SgRDS
+        Port: 3306
+~~~
+
+Também foi criado o EFS com os pontos de montagem:
+
+~~~yaml
+    EFS:
+      #Criando o EFS
+      Type: AWS::EFS::FileSystem
+      DependsOn:
+        - SgEFS
+        - SubnetPrivate1
+        - SubnetPrivate2
+      Properties:
+        BackupPolicy:
+          Status: ENABLED
+        Encrypted: true
+        PerformanceMode: generalPurpose
+        ThroughputMode: elastic
+    
+    EFSMountTarget1:
+      #Indicando o ponto 1 de montagem do EFS com o seu security group associado
+      Type: AWS::EFS::MountTarget
+      DependsOn:
+        - EFS
+      Properties:
+        FileSystemId: !Ref EFS
+        SecurityGroups: 
+          - !Ref SgEFS
+        SubnetId: !Ref SubnetPrivate1
+
+    EFSMountTarget2:
+      #Indicando o ponto 2 de montagem do EFS com o seu security group associado
+      Type: AWS::EFS::MountTarget
+      DependsOn:
+        - EFS
+      Properties:
+        FileSystemId: !Ref EFS
+        SecurityGroups: 
+          - !Ref SgEFS
+        SubnetId: !Ref SubnetPrivate2
+~~~
+
+Após toda a estrutura inicial montada com o banco de pé e o EFS criado, criou-se o load balancer:
+
+~~~yaml
+    LoadBalancer:
+      #Criando o Load Balancer
+      Type: AWS::ElasticLoadBalancing::LoadBalancer
+      DependsOn:
+        - IGWteste
+        - SgLB
+      Properties:
+        LoadBalancerName: project-wordpress-lb
+        Scheme: internet-facing
+        CrossZone: true
+        SecurityGroups: 
+          - !Ref SgLB
+        Subnets:
+          - !Ref SubnetPublic1
+          - !Ref SubnetPublic2
+        Listeners:
+          - LoadBalancerPort: '80'
+            InstancePort: '80'
+            Protocol: HTTP
+        HealthCheck:
+          Target: 'HTTP:80/wp-admin/install.php'
+          HealthyThreshold: '5'
+          UnhealthyThreshold: '5'
+          Interval: '5'
+          Timeout: '4'
+~~~
+
+Agora, é criado o Template de EC2 para funcionamento do Wordpress:
+
+~~~yaml
+    LaunchTemplate:
+      #Criando o Template para as EC2 privadas
+      Type: AWS::EC2::LaunchTemplate
+      DependsOn:
+        - RDS
+        - EFS
+        - LoadBalancer
+      Properties:
+        LaunchTemplateName: Project-Wordpress-EC2-private-CF
+        VersionDescription: EC2 privada com o wordpress
+        LaunchTemplateData:
+          ImageId: ami-0e2c8caa4b6378d8c
+          InstanceType: t2.micro
+          KeyName: chaveNova
+          SecurityGroupIds:
+            - !Ref SgEC2Priv
+          TagSpecifications:
+            - ResourceType: "instance"
+              Tags:
+              - Key: CostCenter
+                Value: C092000024
+              - Key: Project
+                Value: PB - SET 2024
+              - Key: Name
+                Value: PB - SET 2024
+              - Key: Nome
+                Value: Private EC2
+            - ResourceType: "volume"
+              Tags:
+              - Key: CostCenter
+                Value: C092000024
+              - Key: Project
+                Value: PB - SET 2024
+              - Key: Name
+                Value: PB - SET 2024
+              - Key: Nome
+                Value: Private EC2
+
+          UserData:
+            Fn::Base64:
+              !Sub |
+                #!/bin/bash
+
+                #Atualiza a lista de pacotes
+                sudo apt update
+
+                #Atualiza os pacotes
+                sudo apt upgrade
+
+                #Instala o Docker, starta e garante que inicia junto ao sistema
+                sudo apt-get install docker.io -y
+                sudo systemctl start docker
+                sudo usermod -aG docker ubuntu
+                sudo systemctl enable docker
+
+                #Instala o nfs-common e monta o efs no sistema
+                sudo apt-get -y install nfs-common
+                sudo mkdir /efs
+                sudo mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport ${EFSMountTarget1.IpAddress}:/ /efs
+                sudo chmod 666 /etc/fstab
+                sudo echo "${EFSMountTarget1.IpAddress}:/     /efs      nfs4      nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport,_netdev      0      0" >> /etc/fstab
+
+                #Instala o Docker compose
+                sudo curl -L https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m) -o /usr/local/bin/docker-compose
+                sudo chmod +x /usr/local/bin/docker-compose
+
+                cat > /home/ubuntu/docker-compose.yaml <<EOL
+                services:
+                  wordpress:
+                    image: wordpress
+                    volumes:
+                      - /efs/website:/var/www/html
+                    ports:
+                      - 80:80
+                    restart: always
+                    environment:
+                      WORDPRESS_DB_HOST: ${RDS.Endpoint.Address}
+                      WORDPRESS_DB_USER: secrets
+                      WORDPRESS_DB_PASSWORD: secrets
+                      WORDPRESS_DB_NAME: secrets
+                EOL
+
+                sudo docker-compose -f /home/ubuntu/docker-compose.yaml up -d
+~~~
+
+Com o template montado, a única parte faltante para concluir o projeto, é o Auto Scaling Group:
+
+~~~yaml
+AutoScaling:
+      #Criando o Auto Scaling Group
+      Type: AWS::AutoScaling::AutoScalingGroup
+      DependsOn:
+        - LaunchTemplate
+        - AttachIGW
+        - LoadBalancer
+      Properties:
+        AutoScalingGroupName: project-wordpress-asg
+        DesiredCapacity: '2'      
+        MaxSize: '4'             
+        MinSize: '2'              
+        AvailabilityZones:
+          - us-east-1a
+          - us-east-1b
+        LaunchTemplate:
+          LaunchTemplateId: !Ref LaunchTemplate
+          Version: !GetAtt LaunchTemplate.LatestVersionNumber
+        LoadBalancerNames:
+          - project-wordpress-lb
+        VPCZoneIdentifier:   
+          - !Ref SubnetPrivate1
+          - !Ref SubnetPrivate2
+~~~
+
+O esquemático da estrutura é apresentado abaixo:
+
+<div align="center"> <img src="images/application-composer-template.yaml.png" width = "90%" /> </div>
+
+Com isso, todo a infraestrutura sobe de forma funcional a partir do CloudFormation.
 
 ## Resultados Gerais
 
