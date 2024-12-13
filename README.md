@@ -16,7 +16,7 @@ O programa de bolsas da **Compass Uol**<img src="https://logospng.org/download/u
 - [<img src="images/ASG_image.png" width="20"/> Auto Scaling Group](#-auto-scaling-group)
 - [<img src="images/ST_image.png" width="20"/> Stress Test](#-stress-test)
 - [<img src="https://www.strongdm.com/hubfs/21126185/Technology%20Images/5f2b5a777fc4b03c559b12ed_AWS-CloudFormation.png" width="20"/> Cloud Formation](#-cloud-formation)
-
+- [<img src="https://res.cloudinary.com/hy4kyit2a/f_auto,fl_lossy,q_70/learn/modules/monitoring-on-aws/monitor-your-architecture-with-amazon-cloudwatch/images/522c742e37be736db2af0f8a720b1c02_f-05-f-9-a-02-2-a-81-4-fa-3-b-651-412-e-2222-bd-08.png" width="20"/> CloudWatch](#-cloudwatch)
   
 ## <img src="images/VPC_image.png" width="25"/> Criação da VPC
 
@@ -1042,16 +1042,107 @@ AutoScaling:
         VPCZoneIdentifier:   
           - !Ref SubnetPrivate1
           - !Ref SubnetPrivate2
+        HealthCheckGracePeriod: 300
+        HealthCheckType: ELB
+        NotificationConfiguration:
+          TopicARN: !Ref Topico
+          NotificationTypes:
+            - autoscaling:EC2_INSTANCE_LAUNCH
+            - autoscaling:EC2_INSTANCE_LAUNCH_ERROR
+            - autoscaling:EC2_INSTANCE_TERMINATE
+            - autoscaling:EC2_INSTANCE_TERMINATE_ERROR
 ~~~
 
 O esquemático da estrutura é apresentado abaixo:
 
 <div align="center"> <img src="images/application-composer-template.yaml.png" width = "90%" /> </div>
 
-Com isso, todo a infraestrutura sobe de forma funcional a partir do CloudFormation.
+## <img src="https://res.cloudinary.com/hy4kyit2a/f_auto,fl_lossy,q_70/learn/modules/monitoring-on-aws/monitor-your-architecture-with-amazon-cloudwatch/images/522c742e37be736db2af0f8a720b1c02_f-05-f-9-a-02-2-a-81-4-fa-3-b-651-412-e-2222-bd-08.png" width="25"/> CloudWatch
+
+Além das funcionalidades abordadas anteriormente, decidiu-se implementar avisos referentes ao Auto Scaling Group para que o gestor possa acompanhar via email os eventos de subida de intancia, queda de instancia, erro na criação de uma instancia e erro ao tentar finalizar uma instancia. Essas informações já foram apresentadas no Auto Scaling Group e são criadas as regras para acrescentar instancias, diminuir a quantidade de instâncias, e para os alarmes de acordo com o nível de CPU. Caso esteja menor que 25% de média, diminui-se uma instancia, caso esteja maior que 40% de média, acrescenta-se uma instância.
+
+~~~yaml
+    Topico:
+      Type: AWS::SNS::Topic
+      Properties: 
+        Subscription:
+        - Endpoint: "raynton@gmail.com"
+          Protocol: email
+        TopicName: "Topico"
+
+    ScaleUp:
+      Type: AWS::AutoScaling::ScalingPolicy
+      DependsOn:
+        - AutoScaling
+      Properties:
+        AdjustmentType: ChangeInCapacity
+        AutoScalingGroupName: !Ref AutoScaling
+        Cooldown: 60
+        ScalingAdjustment: 1
+
+    ScaleDown:
+      Type: AWS::AutoScaling::ScalingPolicy
+      DependsOn:
+        - AutoScaling
+      Properties:
+        AdjustmentType: ChangeInCapacity
+        AutoScalingGroupName: !Ref AutoScaling
+        Cooldown: 60
+        ScalingAdjustment: -1
+
+    CPUAlarmHigh:
+      Type: AWS::CloudWatch::Alarm
+      DependsOn:
+        - AutoScaling
+      Properties:
+        AlarmDescription: Scale-up if CPU > 40% for 10 minutes
+        MetricName: CPUUtilization
+        Namespace: AWS/EC2
+        Statistic: Average
+        Period: 300
+        EvaluationPeriods: 2
+        Threshold: 40
+        AlarmActions:
+          - !Ref ScaleUp
+        Dimensions:
+          - Name: AutoScalingGroupName
+            Value: !Ref AutoScaling
+        ComparisonOperator: GreaterThanThreshold
+    
+    CPUAlarmLow:
+      Type: AWS::CloudWatch::Alarm
+      DependsOn:
+        - AutoScaling
+      Properties:
+        AlarmDescription: Scale-Down if CPU < 25% for 10 minutes
+        MetricName: CPUUtilization
+        Namespace: AWS/EC2
+        Statistic: Average
+        Period: 300
+        EvaluationPeriods: 2
+        Threshold: 25
+        AlarmActions:
+          - !Ref ScaleDown
+        Dimensions:
+          - Name: AutoScalingGroupName
+            Value: !Ref AutoScaling
+        ComparisonOperator: LessThanThreshold
+~~~    
+
+Pode-se notar que as mensagens são recebidas via email:
+
+<div align="center"> <img src="images/CloudWatch.png" width = "70%" /> </div>
+
+Foi realizado um teste de stress, e o gestor também recebe mensagem indicando que foram criadas novas instâncias por causa do alto uso de CPU:
+
+<div align="center"> <img src="images/CloudWatchUp.png" width = "70%" /> </div>
+
+E ao terminar o teste de Stress, após um período de tempo com a média da CPU abaixo de 25%, será terminada uma instancia até chegar ao mínimo:
+
+<div align="center"> <img src="images/CloudWatchDown.png" width = "70%" /> </div>
 
 ## Resultados Gerais
 
-Após a conclusão do projeto, pode-se entender o funcionamento de diversas ferramentas da AWS para a criação da infraestrutura necessária para o deploy de uma aplicação com segurança e escalabilidade. O bastion Host e o grupo de segurança para ele podem ser eliminados e o sistema passa a ser inacessível para pessoas externas enquanto a aplicação segue funcionando via load balancer com a escalabilidade disponibilizada pelo auto scaling group.
+Após a conclusão do projeto, pode-se entender o funcionamento de diversas ferramentas da AWS para a criação da infraestrutura necessária para o deploy de uma aplicação com controle, segurança e escalabilidade. O bastion Host e o grupo de segurança para ele podem ser eliminados e o sistema passa a ser inacessível para pessoas externas enquanto a aplicação segue funcionando via load balancer com a escalabilidade disponibilizada pelo auto scaling group.
 
 <div align="center"> <img src="images/DiagramaVPCsemBH.jpg" width = "70%" /> </div>
